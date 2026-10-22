@@ -19,6 +19,12 @@ voice_models/
 # ============ AI 生成的原始视频素材（29MB，可随时重跑管线再生） ============
 pet/_vidgen/
 
+# ============ 开发期调试产物（截图/抽帧/临时预览，不入库） ============
+_*.png
+pet/_vidprobe*/
+pet/_video_probe/
+pet/_stage_*.png
+
 # ============ 私人数据：API Key / 备忘录 / 账本 ============
 config.json
 memos.json
