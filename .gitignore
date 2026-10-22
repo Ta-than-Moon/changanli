@@ -1,0 +1,31 @@
+# ============ 编译产物（exe 158MB 超 GitHub 单文件 100MB 上限，不入库） ============
+长安吏.exe
+*.exe
+dist/
+build/
+*.spec.bak
+
+# ============ Python ============
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# ============ 语音模型（464MB，不入库，首次运行按需下载） ============
+voice_models/
+
+# ============ AI 生成的原始视频素材（29MB，可随时重跑管线再生） ============
+pet/_vidgen/
+
+# ============ 私人数据：API Key / 备忘录 / 账本 ============
+config.json
+memos.json
+memos.backup-*.json
+ledger.json
+*.log
+
+# ============ 工作区缓存 ============
+.workbuddy/
+.rembg/

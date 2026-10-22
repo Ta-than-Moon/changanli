@@ -1,0 +1,7 @@
+{
+  "idle": 1,
+  "walk": 10,
+  "greet": 1,
+  "work": 10,
+  "sleep": 1
+}
