@@ -19,7 +19,7 @@ import random
 
 from PySide6.QtWidgets import (QApplication, QWidget, QLabel, QMenu, QPushButton,
                                QGridLayout, QVBoxLayout, QHBoxLayout, QFrame,
-                               QGraphicsDropShadowEffect, QMessageBox)
+                               QGraphicsDropShadowEffect, QMessageBox, QLineEdit)
 from PySide6.QtCore import (Qt, QPoint, QTimer, QThread, Signal, QRectF,
                            QVariantAnimation, QEasingCurve, QEvent, QLockFile)
 from PySide6.QtGui import (QPixmap, QAction, QTransform, QPainter, QColor, QPen,
@@ -120,170 +120,152 @@ class VoiceWorker(QThread):
             self.fail.emit(str(e))
 
 
-# ========== 卷轴令牌架：右键展开的「差遣卷轴」 ==========
+# ========== 差遣卷轴：右键展开的新版卷轴（用户设计稿 juanzhou.png） ==========
 class ScrollDeck(QWidget):
     """
-    悬浮卷轴：右键桌宠，一幅宣纸卷轴从上轴向下滚开。
-    - 展开动画：QVariantAnimation 驱动窗口 mask 和下轴位置，纸从上轴下方"抽"出来
-    - 视觉：木轴鎏金轴头、宣纸帘纹、鎏金内框、右下一枚朱印随卷轴一起滚下来
-    - 衙门区条目：点击弹出该衙门的悬浮窗（真身面板就在窗里当差）；总衙门则进主页面
-    - 即时差遣区：语音 / 巡街 / 换班 / 下班——点了就办，不开窗
-    - 点外部自动收卷（Qt.Popup）；按住卷轴空白纸面拖动 = 挪动小吏
+    悬浮卷轴 v2：右键桌宠，一幅卷轴从左轴向右滚开。
+    - 皮相：用户设计的卷轴图（assets/ui/juanzhou.png），展开时纸面从左轴后抽出
+    - 四个头像 = 四大衙门（云娘·天气 / 急急·备忘 / 阿算·账本 / 小尝·美食）
+    - 右上角城楼 = 总衙门（主页面 home）
+    - 顶部横栏 = 差遣输入框：打字回车，直接送进签押房议事
+    - 右下角朱印小圆钮 = 换班；左下角小字 = 放小吏下班
+    - 点外部自动收卷（Qt.Popup）；按住空白纸面拖动 = 挪动小吏
     """
-    ROD = 18            # 木轴高度
-    ROW_W = 216         # 衙门条目行宽（卷轴宽 258 - 左右纸边）
+    VIEW_W = 780                      # 显示宽度（原图 1023，等比缩）
+    ROLLER_X = 118                    # 左轴右缘（原图坐标，收卷时遮到这里）
 
-    TOKENS = [          # 衙门区：总衙门 + 五座衙门（点开悬浮窗/主页面）
-        ("🏛", "总衙门",   "进主页面", "yamen"),
-        ("💬", "签押房",   "闲聊问事", "chat"),
-        ("📮", "长安驿站", "备忘提醒", "memo"),
-        ("🌤", "司天监",   "天气穿搭", "weather"),
-        ("🍜", "尚食局",   "美食探店", "food"),
-        ("🧾", "户部记账", "收支流水", "ledger"),
+    # 原图坐标系里的可点区域（在裁剪后的 juanzhou.png 上量取）
+    BAR_RECT   = (180, 150, 865, 250)          # 顶部差遣横栏
+    TOWER_RECT = (830, 100, 890, 165)          # 城楼 = 总衙门
+    AVATARS = [                                # 四头像 = 四衙门
+        ((130, 285, 300, 435), "weather", "司天监 · 云娘 —— 天气穿搭"),
+        ((325, 285, 490, 435), "memo",    "长安驿站 · 急急 —— 备忘提醒"),
+        ((510, 285, 675, 435), "ledger",  "户部记账 · 阿算 —— 收支流水"),
+        ((700, 285, 865, 435), "food",    "尚食局 · 小尝 —— 美食探店"),
     ]
-    DEEDS = [           # 即时差遣：不开窗，点了就办
-        ("🎤", "语音叙话",   "voice"),
-        ("🚶", "奉旨巡街",   "stroll"),
-        ("🔄", "换班小吏",   "switch"),
-        ("❌", "放小吏下班", "quit"),
-    ]
+    SWITCH_CENTER = (814, 509)                  # 换班朱印圆钮
+    QUIT_RECT = (130, 440, 300, 478)            # 左下角"放小吏下班"小字
 
-    ROW_QSS = """
-        QPushButton#row {
-            background: transparent; color: #322a20; border: none; border-radius: 10px;
-            text-align: left; padding: 0 14px;
-            font-family: "KaiTi","STKaiti","楷体"; font-size: 16px; font-weight: bold;
-        }
-        QPushButton#row:hover {
-            background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
-                stop:0 rgba(158,43,34,0.16), stop:1 rgba(158,43,34,0.03));
-            border-left: 3px solid #b03a2e; color: #8e1f14;
-        }
-        QPushButton#row:pressed { background: rgba(158,43,34,0.26); }
-    """
-    DEED_QSS = """
-        QPushButton#deed {
-            background: rgba(60,45,25,12); color: #5a4a30;
-            border: 1px dashed rgba(158,43,34,90); border-radius: 10px;
-            font-size: 13px; font-family: "Microsoft YaHei","微软雅黑"; padding: 0;
-        }
-        QPushButton#deed:hover {
-            background: rgba(158,43,34,0.14); color: #8e1f14; border: 1px solid #b03a2e;
-        }
+    BTN_QSS = """
+        QPushButton { background: transparent; border: none; border-radius: 16px; }
+        QPushButton:hover { background: rgba(201,162,83,0.28);
+                            border: 2px solid rgba(176,58,46,0.75); }
+        QPushButton:pressed { background: rgba(158,43,34,0.30); }
     """
 
     def __init__(self, pet):
         super().__init__()
         self.pet = pet
-        # Popup：点外部自动收、置顶、无边框、不进任务栏
         self.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setCursor(Qt.PointingHandCursor)
-        self.setFixedSize(258, 540)
 
-        self._unroll = 0.0        # 展开进度 0→1
-        self._anim = None        # 展开/收卷动画
-        self._drag = None        # 拖动状态
-        self._grain = []         # 纸纹（懒生成，避免每帧随机）
-        self._grain_h = 0        # 纸纹对应的窗高
+        pm = QPixmap(resource_path(os.path.join("assets", "ui", "juanzhou.png")))
+        pm.setDevicePixelRatio(1.0)                    # 杜绝 DPR 把图拉偏
+        self._img = pm.scaledToWidth(self.VIEW_W, Qt.SmoothTransformation)
+        self._img.setDevicePixelRatio(1.0)
+        self._s = self.VIEW_W / 1023.0                 # 显示坐标 = 原图坐标 × _s
+        self.setFixedSize(self.VIEW_W, self._img.height())
 
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(21, self.ROD + 19, 21, self.ROD + 15)
-        lay.setSpacing(0)
+        self._unroll = 0.0
+        self._anim = None
+        self._drag = None
 
-        # ---- 卷首题字 ----
-        title = QLabel("長安吏 · 差遣卷軸")
-        title.setAlignment(Qt.AlignHCenter)
-        title.setStyleSheet(
-            'font-family:"KaiTi","STKaiti","楷体"; font-size:19px; font-weight:bold;'
-            "color:#322a20; background:transparent;")
-        lay.addWidget(title)
-        subt = QLabel("— 点差即办 · 点外即收卷 —")
-        subt.setAlignment(Qt.AlignHCenter)
-        subt.setStyleSheet("color:#9a8b6d; font-size:11px; background:transparent;")
-        lay.addWidget(subt)
-        lay.addSpacing(9)
+        # ---- 顶部横栏：差遣输入框 ----
+        self.bar = QLineEdit(self)
+        self.bar.setGeometry(*self._rect(self.BAR_RECT))
+        self.bar.setPlaceholderText("差遣小吏：吩咐一句，回车即办")
+        self.bar.setAlignment(Qt.AlignCenter)
+        self.bar.setCursor(Qt.IBeamCursor)
+        self.bar.setStyleSheet(
+            'QLineEdit { background: rgba(255,252,244,120); border: none; color: #322a20;'
+            ' font-family: "KaiTi","STKaiti","楷体"; font-size: 17px; padding: 0 18px; }'
+            'QLineEdit:focus { background: rgba(255,252,244,190); }'
+        )
+        self.bar.returnPressed.connect(self._submit_bar)
 
-        # ---- 衙门区：六道条目 ----
-        for icon, name, sub, act in self.TOKENS:
-            lay.addWidget(self._row(icon, name, sub, act))
-            lay.addSpacing(5)
+        # ---- 四头像 ----
+        for rect, act, tip in self.AVATARS:
+            b = QPushButton("", self)
+            b.setGeometry(*self._rect(rect))
+            b.setCursor(Qt.PointingHandCursor)
+            b.setToolTip(tip)
+            b.setStyleSheet(self.BTN_QSS)
+            b.clicked.connect(lambda _=False, a=act: self._dispatch(a))
 
-        # ---- 分隔小签：即时差遣 ----
-        lay.addSpacing(6)
-        sep = QLabel("· 即 时 差 遣 ·")
-        sep.setAlignment(Qt.AlignHCenter)
-        sep.setStyleSheet("color:#8e6f47; font-size:11px; letter-spacing:2px; background:transparent;")
-        lay.addWidget(sep)
-        lay.addSpacing(7)
+        # ---- 城楼：回总衙门 ----
+        t = QPushButton("", self)
+        t.setGeometry(*self._rect(self.TOWER_RECT))
+        t.setCursor(Qt.PointingHandCursor)
+        t.setToolTip("总衙门 —— 进主页面")
+        t.setStyleSheet(self.BTN_QSS)
+        t.clicked.connect(lambda: self._dispatch("yamen"))
 
-        # ---- 差遣区：四道令牌 2×2 ----
-        grid = QGridLayout()
-        grid.setSpacing(7)
-        for i, (icon, name, act) in enumerate(self.DEEDS):
-            grid.addWidget(self._deed(icon, name, act), i // 2, i % 2)
-        lay.addLayout(grid)
+        # ---- 右下角朱印：换班 ----
+        cx, cy = self.SWITCH_CENTER
+        r = int(30 * self._s) + 4
+        sw = QPushButton("换班", self)
+        sw.setGeometry(int((cx - 30) * self._s), int((cy - 30) * self._s), r * 2, r * 2)
+        sw.setCursor(Qt.PointingHandCursor)
+        sw.setToolTip("换一位小吏当值")
+        sw.setStyleSheet(
+            'QPushButton { background: qradialgradient(cx:0.4,cy:0.35,radius:0.9,'
+            '  stop:0 #c0392b, stop:1 #8e1f14); color: #f7e7c3;'
+            '  border: 2px solid #e0b95c; border-radius: %dpx;'
+            '  font-family: "KaiTi","STKaiti","楷体"; font-size: 13px; font-weight: bold; }'
+            'QPushButton:hover { background: #c0392b; }'
+            'QPushButton:pressed { background: #7a1a10; }' % r
+        )
+        sw.clicked.connect(lambda: self._dispatch("switch"))
 
-        # ---- 卷尾小注 ----
-        lay.addStretch()
-        hint = QLabel("按住空白纸面拖动，可挪动小吏")
-        hint.setAlignment(Qt.AlignHCenter)
-        hint.setStyleSheet("color:#b3a188; font-size:10px; background:transparent;")
-        lay.addWidget(hint)
+        # ---- 左下角小字：放小吏下班 ----
+        q = QPushButton("· 放小吏下班 ·", self)
+        q.setGeometry(*self._rect(self.QUIT_RECT))
+        q.setCursor(Qt.PointingHandCursor)
+        q.setStyleSheet(
+            'QPushButton { background: transparent; border: none; color: #a8976f;'
+            ' font-size: 12px; font-family: "Microsoft YaHei","微软雅黑"; }'
+            'QPushButton:hover { color: #8e1f14; }'
+        )
+        q.clicked.connect(lambda: self._dispatch("quit"))
 
-    # ---------- 条目 ----------
-    def _row(self, icon, name, sub, act):
-        """衙门条目：左图标名号、右小注，点开该衙门的悬浮窗"""
-        btn = QPushButton(f"{icon}  {name}")
-        btn.setObjectName("row")
-        btn.setFixedSize(self.ROW_W, 40)
-        btn.setCursor(Qt.PointingHandCursor)
-        btn.setToolTip(f"差遣：{name} —— {sub}")
-        btn.setStyleSheet(self.ROW_QSS)
-        # 小注贴在行尾：设为鼠标透明，点击照样落到按钮上
-        note = QLabel(sub, btn)
-        note.setAttribute(Qt.WA_TransparentForMouseEvents)
-        note.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        note.setStyleSheet("color:#a8976f; font-size:11px; background:transparent;")
-        note.setGeometry(self.ROW_W - 88, 0, 74, 40)
-        btn.clicked.connect(lambda _=False, a=act: self._dispatch(a))
-        return btn
-
-    def _deed(self, icon, name, act):
-        """即时差遣令牌：点了就办，不开窗"""
-        btn = QPushButton(f"{icon} {name}")
-        btn.setObjectName("deed")
-        btn.setFixedSize((self.ROW_W - 7) // 2, 38)
-        btn.setCursor(Qt.PointingHandCursor)
-        btn.setStyleSheet(self.DEED_QSS)
-        btn.clicked.connect(lambda _=False, a=act: self._dispatch(a))
-        return btn
+    def _rect(self, r):
+        """原图坐标 → 显示坐标"""
+        x0, y0, x1, y1 = r
+        return (int(x0 * self._s), int(y0 * self._s),
+                int((x1 - x0) * self._s), int((y1 - y0) * self._s))
 
     # ---------- 差遣：收卷 → 办事 ----------
+    def _submit_bar(self):
+        text = self.bar.text().strip()
+        if not text:
+            return
+        self.bar.clear()
+
+        def go():
+            fw = self.pet.open_float("chat")       # 送进签押房，走正经议事流程
+            chat = fw._panel
+            chat.input.setText(text)
+            chat.send()
+        self._roll_close(then=go)
+
     def _dispatch(self, act):
         def go():
             p = self.pet
-            if act == "voice":
-                p.voice_tap()                # 与双击同款语音唤醒
-            elif act == "stroll":
-                p._stroll_now()
-            elif act == "switch":
+            if act == "switch":
                 p.switch_xiaoli()
             elif act == "quit":
                 QApplication.quit()
             elif act == "yamen":
-                p.open_panel("yamen")        # 进总衙门主页面
+                p.open_panel("yamen")
             else:
-                p.open_float(act)            # 五衙门：弹悬浮窗
+                p.open_float(act)                   # 四衙门：弹悬浮窗
         self._roll_close(then=go)
 
-    # ---------- 展开 / 收卷动画 ----------
-    def _mask_h(self):
-        """当前展开到的纸面高度：上轴高度 + 进度×剩余纸面"""
-        return self.ROD + self._unroll * (self.height() - self.ROD)
-
+    # ---------- 展开 / 收卷：纸面从左轴后向右抽出 ----------
     def _apply_mask(self):
-        self.setMask(QRegion(0, 0, self.width(), max(self.ROD, int(self._mask_h()))))
+        w = max(int(self.ROLLER_X * self._s), int(self._unroll * self.width()))
+        self.setMask(QRegion(0, 0, w, self.height()))
 
     def _on_unroll(self, v):
         self._unroll = float(v)
@@ -291,19 +273,17 @@ class ScrollDeck(QWidget):
         self.update()
 
     def showEvent(self, event):
-        """右键唤出：卷轴从上轴向下展开"""
+        """右键唤出：卷轴从左轴向右展开"""
         super().showEvent(event)
         if self._anim is not None:
-            # 收卷中途又唤出：作废旧动画。
-            # 注意顺序——stop() 会同步发射 finished()，先置空 _anim，
-            # 让旧动画的 _done() 自检不过，避免它误把窗关掉还顺手办了事
+            # 收卷中途又唤出：作废旧动画（stop 会同步发 finished，先置空防误关窗）
             old = self._anim
             self._anim = None
             old.stop()
         self._unroll = 0.0
         self._apply_mask()
         anim = QVariantAnimation(self)
-        anim.setDuration(560)
+        anim.setDuration(480)
         anim.setStartValue(0.0)
         anim.setEndValue(1.0)
         anim.setEasingCurve(QEasingCurve.OutCubic)
@@ -312,19 +292,18 @@ class ScrollDeck(QWidget):
         self._anim = anim
 
     def _roll_close(self, then=None):
-        """收卷动画：纸卷回上轴，卷完才真正消失，然后办事"""
+        """收卷：纸卷回左轴，卷完才真正关窗，然后办事"""
         anim = QVariantAnimation(self)
-        anim.setDuration(280)
+        anim.setDuration(240)
         anim.setStartValue(self._unroll)
         anim.setEndValue(0.0)
         anim.setEasingCurve(QEasingCurve.InCubic)
         anim.valueChanged.connect(self._on_unroll)
 
         def _done():
-            # 若收卷中途被重新唤出（_anim 已换人），这次收卷作废
             if self._anim is anim:
                 self._anim = None
-                self.close()           # 关键：动画只卷纸，窗框要在这里真正消失
+                self.close()
                 if then:
                     then()
 
@@ -335,7 +314,6 @@ class ScrollDeck(QWidget):
     # ---------- 拖动卷轴 = 拖着小吏一起走（按住空白纸面） ----------
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            # 抓取偏移按小吏的坐标算：拖卷轴时移动的是小吏，卷轴自动跟随
             self._drag = event.globalPosition().toPoint() - self.pet.frameGeometry().topLeft()
 
     def mouseMoveEvent(self, event):
@@ -347,75 +325,11 @@ class ScrollDeck(QWidget):
     def mouseReleaseEvent(self, event):
         self._drag = None
 
-    # ---------- 卷轴的皮相：宣纸、木轴、朱印 ----------
-    def _paint_rod(self, p, y):
-        """画一根木轴：深木圆轴身 + 两端鎏金轴头"""
-        W, h = self.width(), self.ROD
-        g = QLinearGradient(0, y, 0, y + h)
-        g.setColorAt(0.0, QColor("#221709"))
-        g.setColorAt(0.45, QColor("#4c351d"))
-        g.setColorAt(1.0, QColor("#221709"))
-        p.fillRect(QRectF(0, y, W, h), QBrush(g))
-        # 鎏金轴头
-        for cx in (0, W - 14):
-            gc = QLinearGradient(cx, 0, cx + 14, 0)
-            gc.setColorAt(0.0, QColor("#8a6a2e"))
-            gc.setColorAt(0.5, QColor("#e6c26a"))
-            gc.setColorAt(1.0, QColor("#8a6a2e"))
-            p.setPen(QPen(QColor(60, 40, 15, 120), 1))
-            p.setBrush(QBrush(gc))
-            p.drawRoundedRect(QRectF(cx + 1, y - 2.5, 12, h + 5), 5, 5)
-        # 轴身一道暗纹
-        p.setPen(QPen(QColor(0, 0, 0, 60), 1))
-        p.drawLine(14, int(y + h / 2), W - 14, int(y + h / 2))
-
+    # ---------- 皮相：就是用户那幅卷轴 ----------
     def paintEvent(self, event):
         p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        W, H = self.width(), self.height()
-
-        # ① 宣纸底：竖向米黄渐变，上下微暗像受过潮气
-        grad = QLinearGradient(0, 0, 0, H)
-        grad.setColorAt(0.0, QColor("#f1e8cf"))
-        grad.setColorAt(0.5, QColor("#f9f3e2"))
-        grad.setColorAt(1.0, QColor("#efe5c9"))
-        p.fillRect(QRectF(0, 0, W, H), QBrush(grad))
-        # 左右边缘晕影
-        for x0, x1 in ((0, 22), (W - 22, W)):
-            g2 = QLinearGradient(x0, 0, x1, 0)
-            g2.setColorAt(0, QColor(96, 74, 42, 38))
-            g2.setColorAt(1, QColor(96, 74, 42, 0))
-            p.fillRect(QRectF(x0, 0, x1 - x0, H), QBrush(g2))
-        # 纸纹（帘纹）：淡棕细横线，第一次绘制时固定随机生成
-        if not self._grain or self._grain_h != H:
-            rng = random.Random(20261022)
-            self._grain = [(rng.uniform(self.ROD, H - self.ROD), rng.randint(10, 34))
-                           for _ in range(46)]
-            self._grain_h = H
-        for gy, ga in self._grain:
-            p.fillRect(QRectF(0, gy, W, 1), QColor(122, 100, 60, ga))
-        # 鎏金内框
-        p.setPen(QPen(QColor(201, 162, 83, 170), 1.2))
-        p.drawRect(QRectF(9.5, 9.5, W - 19, H - 19))
-
-        # ② 木轴：上轴固定，下轴跟着展开进度滚
-        self._paint_rod(p, 0)
-        bottom = max(self.ROD + 6, self._mask_h())
-        self._paint_rod(p, bottom - self.ROD)
-
-        # ③ 朱印一枚：跟着下轴走，卷到哪印到哪
-        p.save()
-        p.translate(W - 44, bottom - 44)
-        p.rotate(-6.0)
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(158, 43, 34, 216))
-        p.drawRoundedRect(QRectF(-15, -15, 30, 30), 5, 5)
-        p.setPen(QPen(QColor(224, 185, 92, 200), 1))
-        p.drawRoundedRect(QRectF(-15, -15, 30, 30), 5, 5)
-        p.setPen(QPen(QColor(247, 231, 195, 235)))
-        p.setFont(QFont("KaiTi", 15, QFont.Bold))
-        p.drawText(QRectF(-15, -16, 30, 30), Qt.AlignCenter, "吏")
-        p.restore()
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
+        p.drawPixmap(self.rect(), self._img)           # 强制铺满窗口，不吃 DPR 亏
 
 
 # ========== 衙门悬浮窗：把总衙门的真身面板"借"出来悬浮当差 ==========

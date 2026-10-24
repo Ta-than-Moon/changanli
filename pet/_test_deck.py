@@ -63,7 +63,8 @@ pet.contextMenuEvent(FakePress())
 app.processEvents()
 deck = pet._deck
 assert isinstance(deck, main.ScrollDeck)
-assert len(deck.TOKENS) == 6 and len(deck.DEEDS) == 4
+assert len(deck.AVATARS) == 4          # 新卷轴：四头像 = 四衙门
+assert deck.bar is not None            # 顶部差遣输入框
 assert deck.isVisible()
 assert deck._unroll == 0.0          # 刚弹出时是卷着的
 wait(700)                                # 等展开动画收尾
@@ -113,15 +114,45 @@ app.processEvents()
 assert yamen.isVisible(), "总衙门未打开"
 print("⑥ 总衙门条目进主页面 OK")
 
-deck._dispatch("stroll")
-wait(400)
+# ---------- ⑤b 差遣横栏：回车 → 签押房悬浮窗接收吩咐 ----------
+pet.contextMenuEvent(FakePress())      # 重新展开卷轴
+wait(700)
+chat_fw = pet.open_float("chat")
+chat_fw.close()                        # 先关，待会儿看横栏能不能再叫出来
+sent = []
+import panels as _pn
+chat_page = yamen.pages["chat"]
+_orig_send = chat_page.send
+chat_page.send = lambda: sent.append(chat_page.input.text())   # 拦截，不真发网络
+deck.bar.setText("今夜戍鼓几时歇")
+deck._submit_bar()
+wait(500)
+cfw = pet._floats.get("chat")
+assert cfw is not None and cfw.isVisible(), "横栏回车后签押房未弹出"
+assert sent == ["今夜戍鼓几时歇"], sent
+chat_page.send = _orig_send
+cfw.close()
+print("⑦ 差遣横栏 → 签押房议事 OK")
+
+# ---------- ⑤c 换班朱印 ----------
+old_xiaoli = pet.current
+deck._dispatch("switch")
+wait(500)
+assert pet.current == (old_xiaoli + 1) % len(main.XIAOLI), "换班没换人"
+print("⑧ 换班朱印 OK")
+
+# ---------- ⑤d 巡街与语音（直接调小吏本人，不走卷轴） ----------
+pet._stroll_now()
+wait(300)
 assert pet.state == main.PetWindow.WALK, "巡街令未生效"
-print("⑦ 即时差遣（巡街）OK")
+print("⑨ 即时差遣（巡街）OK")
 
 # 语音令牌：没有麦克风也应安全（不崩）
-deck._dispatch("voice")
-wait(400)
-print("⑧ 语音令牌安全 OK")
+pet.voice_tap()
+wait(300)
+if getattr(pet, "_voice_running", False):
+    pet.voice_tap()                    # 立刻挂断，不真收音
+print("⑩ 语音令牌安全 OK")
 
 # ---------- ⑥ 卷轴拖动带动小吏 ----------
 pet._deck.show()
@@ -130,7 +161,7 @@ old_pos = pet.pos()
 deck._drag = QPoint(old_pos.x() + 5, old_pos.y() + 5)
 deck.mouseMoveEvent(FakeMove(QPoint(old_pos.x() - 60, old_pos.y() - 20)))
 assert pet.pos() != old_pos, "拖卷轴没带动小吏"
-print("⑨ 拖卷轴带动小吏 OK")
+print("⑪ 拖卷轴带动小吏 OK")
 
 # ---------- ⑦ 弹框强制置顶（置顶悬浮窗里不能被压住） ----------
 import panels
@@ -155,7 +186,7 @@ try:
     assert _seen["topmost"], "提示弹框没带置顶旗"
 finally:
     QMessageBox.exec = _orig_exec
-print("⑩ 弹框三兄弟强制置顶 OK")
+print("⑫ 弹框三兄弟强制置顶 OK")
 
 # ---------- ⑧ 陈影自愈：别窗已焚毁的文书，本窗删除不装死 ----------
 yamen = pet._panels["yamen"]
@@ -184,6 +215,6 @@ finally:
 assert _info_seen, "陈影删除没有给用户任何交代"
 assert all("陈影自愈测试文书" not in (memo_panel.list_widget.item(i).text() or "")
            for i in range(memo_panel.list_widget.count())), "陈影没被刷新掉"
-print("⑪ 陈影自愈（别窗焚毁→本窗明说+刷新）OK")
+print("⑬ 陈影自愈（别窗焚毁→本窗明说+刷新）OK")
 
 print("全部通过")
