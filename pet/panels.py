@@ -1120,11 +1120,11 @@ class FeatureCarousel(QFrame):
     - 每页显示该衙门的实时数据摘要，点「进入」直达
     """
     SLIDES = [
-        ("chat", "💬", "签押房", "主簿·阿卷 · 闲话聊天 有问必答", "ginkgo_eaves.jpg"),
-        ("memo", "📮", "长安驿站", "驿丞·急急 · 备忘排程 到点提醒", "misty_bridge.jpg"),
-        ("weather", "🌤", "司天监", "司天·云娘 · 观天象 指点穿搭", "ginkgo_tower.jpg"),
-        ("food", "🍜", "尚食局", "尚食·小尝 · 荐美食 谋游玩", "xian_food.jpg"),
-        ("ledger", "🧾", "户部·记账", "户部·阿算 · 收支入册 月末结余", "bell_tower_night.jpg"),
+        ("chat", "💬", "签押房", "主簿·阿卷 · 闲话聊天 有问必答", "chat_gate.jpg"),
+        ("memo", "📮", "长安驿站", "驿丞·急急 · 备忘排程 到点提醒", "memo_tower.jpg"),
+        ("weather", "🌤", "司天监", "司天·云娘 · 观天象 指点穿搭", "weather_rain.jpg"),
+        ("food", "🍜", "尚食局", "尚食·小尝 · 荐美食 谋游玩", "food_table.jpg"),
+        ("ledger", "🧾", "户部·记账", "户部·阿算 · 收支入册 月末结余", "ledger_fans.jpg"),
     ]
 
     def __init__(self, yamen):
@@ -1323,12 +1323,12 @@ class YamenWindow(QWidget):
         ("ledger", "🧾  户部·记账"),
     ]
     GATES = [
-        ("💬 签押房", "主簿·阿卷 · 闲话聊天 有问必答", "chat", "ginkgo_eaves.jpg"),
-        ("📮 长安驿站", "驿丞·急急 · 备忘排程 到点提醒", "memo", "misty_bridge.jpg"),
-        ("🌤 司天监", "司天·云娘 · 观天象 指点穿搭", "weather", "ginkgo_tower.jpg"),
-        ("🍜 尚食局", "尚食·小尝 · 荐美食 谋游玩", "food", "xian_food.jpg"),
-        ("🧾 户部记账", "户部·阿算 · 收支入册 月末结余", "ledger", "bell_tower_night.jpg"),
-        ("🔄 换班小吏", "五位小吏轮值，换个当差的", "switch", "misty_dawn.jpg"),
+        ("💬 签押房", "主簿·阿卷 · 闲话聊天 有问必答", "chat", "chat_gate.jpg"),
+        ("📮 长安驿站", "驿丞·急急 · 备忘排程 到点提醒", "memo", "memo_tower.jpg"),
+        ("🌤 司天监", "司天·云娘 · 观天象 指点穿搭", "weather", "weather_rain.jpg"),
+        ("🍜 尚食局", "尚食·小尝 · 荐美食 谋游玩", "food", "food_table.jpg"),
+        ("🧾 户部记账", "户部·阿算 · 收支入册 月末结余", "ledger", "ledger_fans.jpg"),
+        ("🔄 换班小吏", "五位小吏轮值，换个当差的", "switch", "switch_tree.jpg"),
     ]
     WEEK = ["一", "二", "三", "四", "五", "六", "日"]
 
@@ -1488,8 +1488,8 @@ class YamenWindow(QWidget):
         layout.setContentsMargins(24, 20, 24, 16)
         layout.setSpacing(14)
 
-        # 画境横幅：银杏映唐建 + 匾额 + 值房时钟
-        banner = SceneWidget(_BG("ginkgo_court.jpg"), dark=175)
+        # 画境横幅：大雁塔暮色 + 匾额 + 值房时钟
+        banner = SceneWidget(_BG("yamen_banner.jpg"), dark=175)
         banner.setFixedHeight(196)
         _shadow(banner, blur=24, dy=6)
         bl = QHBoxLayout(banner)
@@ -1663,7 +1663,7 @@ class ChatBubble(QWidget):
 class ChatPanel(BasePanel):
     def __init__(self, pet):
         super().__init__("✒️ 签押房 · 衙署厅堂", "主人落座，小吏研墨——闲话也好，吩咐差事也好",
-                         bg_image=_BG("ginkgo_eaves.jpg"), bg_scrim=118)
+                         bg_image=_BG("chat_gate.jpg"), bg_scrim=118)
         self.pet = pet
         # 签押房固定由主簿·阿卷坐堂，不随换班小吏轮换；
         # 别衙门的事他只做引见，请对应小吏进来回话
@@ -1988,7 +1988,7 @@ class MemoPanel(BasePanel):
     """
     def __init__(self, pet):
         super().__init__("长 安 驿 站", "录一件文书，选一档加急——时辰一到，小吏飞马来报",
-                         bg_image=_BG("misty_dawn.jpg"), bg_scrim=150, center_title=True)
+                         bg_image=_BG("memo_tower.jpg"), bg_scrim=150, center_title=True)
         self.pet = pet  # 提醒时要让宠物冒气泡
         self._selected_overdue = None
 
@@ -2423,7 +2423,7 @@ class MemoPanel(BasePanel):
 class WeatherPanel(BasePanel):
     def __init__(self, default_city):
         super().__init__("🌤 司天监 · 观天台", "夜观天象，日察云纹——顺带告诉主人今日该怎么穿",
-                         bg_image=_BG("misty_bridge.jpg"), bg_scrim=72, animated=True)
+                         bg_image=_BG("weather_rain.jpg"), bg_scrim=72, animated=True)
 
         # 草图版式：上排「功能区｜人物卡」，中排「议事」，下排「对话输入」
         top = QHBoxLayout()
@@ -2537,7 +2537,7 @@ class WeatherPanel(BasePanel):
 class FoodPanel(BasePanel):
     def __init__(self, default_city):
         super().__init__("🍜 尚食局 · 荐味司", "百味尝遍，长安吃透——主人今天想吃点什么？",
-                         bg_image=_BG("xian_food.jpg"), bg_scrim=145)
+                         bg_image=_BG("food_table.jpg"), bg_scrim=145)
 
         # 草图版式：上排「功能区｜人物卡」，中排「议事」，下排「对话输入」
         top = QHBoxLayout()
@@ -2813,7 +2813,8 @@ class LedgerPanel(BasePanel):
     """户部账房：一收一支皆入册，顺手算清这个月钱都去哪了"""
 
     def __init__(self, pet):
-        super().__init__("🧾 户部 · 记账房", "一收一支皆入册，月末方知钱去哪——主人只管记，账小吏来算")
+        super().__init__("🧾 户部 · 记账房", "一收一支皆入册，月末方知钱去哪——主人只管记，账小吏来算",
+                         bg_image=_BG("ledger_fans.jpg"), bg_scrim=170)
         self.pet = pet
         self._kind = "out"
 
